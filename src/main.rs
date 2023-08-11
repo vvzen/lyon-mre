@@ -469,7 +469,7 @@ async fn main() -> eyre::Result<()> {
     let initial_position = winit::dpi::PhysicalPosition { x: 10, y: 100 };
 
     let window = winit::window::WindowBuilder::new()
-        .with_title("Improvviso (Main Window)")
+        .with_title("Circle Test")
         .with_position(initial_position)
         .with_resizable(false)
         .build(&event_loop)
