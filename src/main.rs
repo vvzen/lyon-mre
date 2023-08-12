@@ -9,8 +9,8 @@ use wgpu::util::DeviceExt;
 type TessellatedOutput = (Vec<Vertex>, Vec<u16>);
 
 // Shorthands to avoid hardcoding these values
-type PositionSize = [f32; 2];
-type ColorSize = [f32; 4];
+type PositionT = [f32; 2];
+type ColorT = [f32; 4];
 
 #[derive(Debug, Copy, Clone)]
 struct Color {
@@ -25,7 +25,7 @@ impl Color {
         Self { r, g, b, a }
     }
 
-    fn as_array(self) -> ColorSize {
+    fn as_array(self) -> ColorT {
         [self.r, self.g, self.b, self.a]
     }
 }
@@ -33,13 +33,13 @@ impl Color {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
-    position: PositionSize,
-    color: ColorSize,
+    position: PositionT,
+    color: ColorT,
 }
 
 // The vertex constructor. This is the object that will be used to create the custom
 // verticex from the information provided by the tessellators.
-struct WithColor(ColorSize);
+struct WithColor(ColorT);
 
 impl FillVertexConstructor<Vertex> for WithColor {
     fn new_vertex(&mut self, vertex: FillVertex) -> Vertex {
@@ -75,7 +75,7 @@ impl Vertex {
                 wgpu::VertexAttribute {
                     // This attribute comes (in memory) after the size of 'position',
                     // which is [f32; 3] currently
-                    offset: std::mem::size_of::<PositionSize>() as wgpu::BufferAddress,
+                    offset: std::mem::size_of::<PositionT>() as wgpu::BufferAddress,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x3,
                 },
