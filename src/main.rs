@@ -159,89 +159,10 @@ impl GPUState {
         };
 
         let shader = device.create_shader_module(shader_desc);
+        let render_pipeline = create_render_pipeline(&device, &config, &shader);
 
-        // Render Pipeline
-        let pipeline_layout_desc = wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[],
-            push_constant_ranges: &[],
-        };
-
-        let render_pipeline_layout = device.create_pipeline_layout(&pipeline_layout_desc);
-
-        let target_states = vec![Some(wgpu::ColorTargetState {
-            format: surface_format,
-            blend: Some(wgpu::BlendState::REPLACE),
-            write_mask: wgpu::ColorWrites::ALL,
-        })];
-
-        let topology = wgpu::PrimitiveTopology::TriangleStrip;
-
-        let render_pipeline_desc = wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                // The 'buffers' field tells wgpu what type of vertices
-                // we want to pass to the vertex shader.
-                buffers: &[Vertex::desc()],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                // The 'targets' field tells wgpu what color outputs it should
-                // set up. Currently, we only need one for the surface. We
-                // use the surface's format so that copying to it is easy,
-                // and we specify that the blending should just replace old
-                // pixel data with new data. We also tell wgpu to write to
-                // all colors: red, blue, green, and alpha.
-                targets: &target_states,
-            }),
-            // The 'primitive' field  describes how to interpret the vertices
-            // we're gonna send when converting them into triangles
-            primitive: wgpu::PrimitiveState {
-                topology,
-                strip_index_format: None,
-                // FrontFace::Ccw means that a triangle is facing forward
-                // if the vertices are arranged in a counter-clockwise direction.
-                // Triangles that are not facing forward will be culled.
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-        };
-
-        let render_pipeline = device.create_render_pipeline(&render_pipeline_desc);
-
-        let vertices = vec![
-            // Top
-            Vertex {
-                position: [0.0, 0.5, 0.0],
-                color: [1.0, 0.0, 0.0],
-            },
-            // Bottom left
-            Vertex {
-                position: [-0.5, -0.5, 0.0],
-                color: [0.0, 1.0, 0.0],
-            },
-            // Bottom right
-            Vertex {
-                position: [0.5, -0.5, 0.0],
-                color: [0.0, 0.0, 1.0],
-            },
-        ];
-
-        let indices = vec![0, 1, 2];
+        let vertices = vec![];
+        let indices = vec![];
         let fill_color = Color::new(1.0, 0.0, 1.0);
 
         Self {
@@ -269,72 +190,6 @@ impl GPUState {
 
     fn update_indices(&mut self, indices: Vec<u16>) {
         self.indices = indices;
-    }
-
-    fn create_render_pipeline(&mut self) {
-        let pipeline_layout_desc = wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[],
-            push_constant_ranges: &[],
-        };
-
-        let render_pipeline_layout = self.device.create_pipeline_layout(&pipeline_layout_desc);
-
-        let target_states = vec![Some(wgpu::ColorTargetState {
-            format: self.surface_config.format.clone(),
-            blend: Some(wgpu::BlendState::REPLACE),
-            write_mask: wgpu::ColorWrites::ALL,
-        })];
-
-        // Decide the topology
-        // let topology = wgpu::PrimitiveTopology::TriangleList;
-        let topology = wgpu::PrimitiveTopology::TriangleStrip;
-
-        let render_pipeline_desc = wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &self.shader,
-                entry_point: "vs_main",
-                // The 'buffers' field tells wgpu what type of vertices
-                // we want to pass to the vertex shader.
-                buffers: &[Vertex::desc()],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &self.shader,
-                entry_point: "fs_main",
-                // The 'targets' field tells wgpu what color outputs it should
-                // set up. Currently, we only need one for the surface. We
-                // use the surface's format so that copying to it is easy,
-                // and we specify that the blending should just replace old
-                // pixel data with new data. We also tell wgpu to write to
-                // all colors: red, blue, green, and alpha.
-                targets: &target_states,
-            }),
-            // The 'primitive' field  describes how to interpret the vertices
-            // we're gonna send when converting them into triangles
-            primitive: wgpu::PrimitiveState {
-                topology,
-                strip_index_format: None,
-                // FrontFace::Ccw means that a triangle is facing forward
-                // if the vertices are arranged in a counter-clockwise direction.
-                // Triangles that are not facing forward will be culled.
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-        };
-
-        self.render_pipeline = self.device.create_render_pipeline(&render_pipeline_desc);
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -456,6 +311,76 @@ fn generate_circle(center_xy: (f32, f32), radius: f32, color: &Color) -> Tessell
     );
 
     (geometry.vertices.to_vec(), geometry.indices.to_vec())
+}
+
+fn create_render_pipeline(
+    device: &wgpu::Device,
+    config: &wgpu::SurfaceConfiguration,
+    shader: &wgpu::ShaderModule,
+) -> wgpu::RenderPipeline {
+    let pipeline_layout_desc = wgpu::PipelineLayoutDescriptor {
+        label: Some("Render Pipeline Layout"),
+        bind_group_layouts: &[],
+        push_constant_ranges: &[],
+    };
+
+    let render_pipeline_layout = device.create_pipeline_layout(&pipeline_layout_desc);
+
+    let target_states = vec![Some(wgpu::ColorTargetState {
+        format: config.format.clone(),
+        blend: Some(wgpu::BlendState::REPLACE),
+        write_mask: wgpu::ColorWrites::ALL,
+    })];
+
+    // Decide the topology
+    // let topology = wgpu::PrimitiveTopology::TriangleList;
+    let topology = wgpu::PrimitiveTopology::TriangleStrip;
+
+    let render_pipeline_desc = wgpu::RenderPipelineDescriptor {
+        label: Some("Render Pipeline"),
+        layout: Some(&render_pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            // The 'buffers' field tells wgpu what type of vertices
+            // we want to pass to the vertex shader.
+            buffers: &[Vertex::desc()],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_main",
+            // The 'targets' field tells wgpu what color outputs it should
+            // set up. Currently, we only need one for the surface. We
+            // use the surface's format so that copying to it is easy,
+            // and we specify that the blending should just replace old
+            // pixel data with new data. We also tell wgpu to write to
+            // all colors: red, blue, green, and alpha.
+            targets: &target_states,
+        }),
+        // The 'primitive' field  describes how to interpret the vertices
+        // we're gonna send when converting them into triangles
+        primitive: wgpu::PrimitiveState {
+            topology,
+            strip_index_format: Some(wgpu::IndexFormat::Uint16),
+            // FrontFace::Ccw means that a triangle is facing forward
+            // if the vertices are arranged in a counter-clockwise direction.
+            // Triangles that are not facing forward will be culled.
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: Some(wgpu::Face::Back),
+            polygon_mode: wgpu::PolygonMode::Fill,
+            unclipped_depth: false,
+            conservative: false,
+        },
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState {
+            count: 1,
+            mask: !0,
+            alpha_to_coverage_enabled: false,
+        },
+        multiview: None,
+    };
+
+    device.create_render_pipeline(&render_pipeline_desc)
 }
 
 #[tokio::main]
