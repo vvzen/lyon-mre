@@ -418,7 +418,7 @@ async fn main() -> eyre::Result<()> {
         match event {
             // Custom app events
             winit::event::Event::UserEvent(CustomSketchEvent::Rerender(_)) => {
-                let radius = 1.0;
+                let radius = 0.5;
                 let (vertices, indices) =
                     generate_circle((0.0, 0.0), radius, &gpu_state.fill_color);
 
