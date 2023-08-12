@@ -395,6 +395,10 @@ async fn main() -> eyre::Result<()> {
 
     let window = winit::window::WindowBuilder::new()
         .with_title("Circle Test")
+        .with_inner_size(winit::dpi::LogicalSize {
+            width: 800,
+            height: 800,
+        })
         .with_position(initial_position)
         .with_resizable(false)
         .build(&event_loop)
