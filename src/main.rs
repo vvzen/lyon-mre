@@ -421,7 +421,6 @@ async fn main() -> eyre::Result<()> {
                 if !vertices.is_empty() && !indices.is_empty() {
                     gpu_state.update_vertices(vertices);
                     gpu_state.update_indices(indices);
-                    gpu_state.create_render_pipeline();
                     gpu_state.window().request_redraw();
                 }
             }
