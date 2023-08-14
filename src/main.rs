@@ -1,36 +1,53 @@
 use bytemuck;
 use color_eyre::eyre;
 use lyon::lyon_tessellation::{BuffersBuilder, FillVertex};
-use lyon::tessellation::{FillOptions, FillTessellator, VertexBuffers};
-use wgpu::util::DeviceExt;
-// use lyon::geom::euclid::UnknownUnit;
 use lyon::math::point;
+use lyon::tessellation::{FillOptions, FillTessellator, FillVertexConstructor, VertexBuffers};
+use wgpu::util::DeviceExt;
 
 // Vertices + Indices
 type TessellatedOutput = (Vec<Vertex>, Vec<u16>);
+
+// Shorthands to avoid hardcoding these values
+type PositionT = [f32; 2];
+type ColorT = [f32; 4];
 
 #[derive(Debug, Copy, Clone)]
 struct Color {
     r: f32,
     g: f32,
     b: f32,
+    a: f32,
 }
 
 impl Color {
-    fn new(r: f32, g: f32, b: f32) -> Self {
-        Self { r, g, b }
+    fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
+        Self { r, g, b, a }
     }
 
-    fn as_array(self) -> [f32; 3] {
-        [self.r, self.g, self.b]
+    fn as_array(self) -> ColorT {
+        [self.r, self.g, self.b, self.a]
     }
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
-    position: [f32; 3],
-    color: [f32; 3],
+    position: PositionT,
+    color: ColorT,
+}
+
+// The vertex constructor. This is the object that will be used to create the custom
+// verticex from the information provided by the tessellators.
+struct WithColor(ColorT);
+
+impl FillVertexConstructor<Vertex> for WithColor {
+    fn new_vertex(&mut self, vertex: FillVertex) -> Vertex {
+        Vertex {
+            position: vertex.position().to_array(),
+            color: self.0,
+        }
+    }
 }
 
 impl Vertex {
@@ -38,7 +55,6 @@ impl Vertex {
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             // 'array_stride' defines how wide a Vertex is. Right now, this will probably be
-            // 24 bytes (8 bytes * 3 components)
             array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
             // 'step_mode' tells the pipeline whether each elemenet in the array
             // of this buffer represents per-vertex data of per-instance data
@@ -59,7 +75,7 @@ impl Vertex {
                 wgpu::VertexAttribute {
                     // This attribute comes (in memory) after the size of 'position',
                     // which is [f32; 3] currently
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    offset: std::mem::size_of::<PositionT>() as wgpu::BufferAddress,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x3,
                 },
@@ -163,7 +179,7 @@ impl GPUState {
 
         let vertices = vec![];
         let indices = vec![];
-        let fill_color = Color::new(1.0, 0.0, 1.0);
+        let fill_color = Color::new(1.0, 0.0, 1.0, 1.0);
 
         Self {
             window,
@@ -283,34 +299,27 @@ impl GPUState {
 }
 
 fn generate_circle(center_xy: (f32, f32), radius: f32, color: &Color) -> TessellatedOutput {
-    let mut geometry: VertexBuffers<Vertex, u16> = VertexBuffers::new();
+    let mut output: VertexBuffers<Vertex, u16> = VertexBuffers::new();
 
     let mut tessellator = FillTessellator::new();
-    let options = FillOptions::default().with_tolerance(0.001);
+    let options = FillOptions::default().with_tolerance(0.0001);
 
     tessellator
         .tessellate_circle(
             point(center_xy.0, center_xy.1),
             radius,
             &options,
-            &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
-                let p = vertex.position().to_3d();
-                let c = color.clone().as_array();
-                Vertex {
-                    position: p.into(),
-                    color: c,
-                }
-            }),
+            &mut BuffersBuilder::new(&mut output, WithColor(color.as_array())),
         )
         .unwrap();
 
     eprintln!(
         "-- Circle: {} vertices {} indices",
-        geometry.vertices.len(),
-        geometry.indices.len()
+        output.vertices.len(),
+        output.indices.len()
     );
 
-    (geometry.vertices.to_vec(), geometry.indices.to_vec())
+    (output.vertices.to_vec(), output.indices.to_vec())
 }
 
 fn create_render_pipeline(
@@ -333,8 +342,7 @@ fn create_render_pipeline(
     })];
 
     // Decide the topology
-    // let topology = wgpu::PrimitiveTopology::TriangleList;
-    let topology = wgpu::PrimitiveTopology::TriangleStrip;
+    let topology = wgpu::PrimitiveTopology::TriangleList;
 
     let render_pipeline_desc = wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline"),
@@ -361,11 +369,8 @@ fn create_render_pipeline(
         // we're gonna send when converting them into triangles
         primitive: wgpu::PrimitiveState {
             topology,
-            strip_index_format: Some(wgpu::IndexFormat::Uint16),
-            // FrontFace::Ccw means that a triangle is facing forward
-            // if the vertices are arranged in a counter-clockwise direction.
-            // Triangles that are not facing forward will be culled.
-            front_face: wgpu::FrontFace::Ccw,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Cw,
             cull_mode: Some(wgpu::Face::Back),
             polygon_mode: wgpu::PolygonMode::Fill,
             unclipped_depth: false,
@@ -387,6 +392,8 @@ fn create_render_pipeline(
 async fn main() -> eyre::Result<()> {
     // Install the eyre error handlers
     color_eyre::install()?;
+
+    eprintln!("Size of a vertex: {}", std::mem::size_of::<Vertex>());
 
     let event_loop =
         winit::event_loop::EventLoopBuilder::<CustomSketchEvent>::with_user_event().build();
